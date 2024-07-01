@@ -1,0 +1,276 @@
+version: '3'
+services:
+  neo4j:
+      image: neo4j:3.5.26
+      container_name: neo4j_amundsen
+      environment:
+        - NEO4J_AUTH=neo4j/test
+      restart: unless-stopped
+      ulimits:
+        nofile:
+          soft: 40000
+          hard: 40000
+      #ports:
+      #    - 7474:7474
+      #    - 7687:7687
+      volumes:
+          - ./data/docker/neo4j/conf:/var/lib/neo4j/conf
+          - ./data/docker/neo4j/plugins:/var/lib/neo4j/plugins
+          - ./data/backup:/backup
+          - neo4j_data:/data
+      networks:
+        - vda
+  elasticsearch:
+      image: elasticsearch:8.0.0
+      container_name: es_amundsen
+      restart: unless-stopped
+      #ports:
+      #    - 9200:9200
+      volumes:
+        - es_data:/usr/share/elasticsearch/data
+        #- es_data:/var/lib/elasticsearch/data
+      networks:
+        - vda
+      deploy:
+          resources:
+            limits:
+              memory: 2G
+            reservations:
+              memory: 500M    
+      ulimits:
+        nofile:
+          soft: 65536
+          hard: 65536
+      environment:
+        - discovery.type=single-node
+        - xpack.security.enabled=false
+        - bootstrap.memory_lock=true
+        - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+        - cluster.routing.allocation.disk.threshold_enabled=false
+  amundsensearch:
+      image: amundsendev/amundsen-search:4.0.2
+      container_name: amundsensearch
+      restart: unless-stopped
+      #ports:
+      #  - 5000:5000
+      depends_on:
+        - elasticsearch
+      networks:
+        - vda
+      environment:
+        - PROXY_ENDPOINT=es_amundsen
+      command: gunicorn -w 2 --bind :5000 search_service.search_wsgi
+  amundsenmetadata:
+      image: amundsendev/amundsen-metadata:3.11.0
+      container_name: amundsenmetadata
+      restart: unless-stopped
+      depends_on:
+        - neo4j
+      #ports:
+      #  - 5001:5000
+      networks:
+        - vda
+      environment:
+         - PROXY_HOST=bolt://neo4j_amundsen
+      command: gunicorn -w 2 --bind :5000 metadata_service.metadata_wsgi
+  amundsenfrontend:
+      image: amundsendev/amundsen-frontend:4.2.0
+      container_name: amundsenfrontend
+      restart: unless-stopped
+      depends_on:
+        - amundsenmetadata
+        - amundsensearch
+      #ports:
+      #- 5002:5000
+      networks:
+        - vda
+      environment:
+        - SEARCHSERVICE_BASE=http://amundsensearch:5000
+        - METADATASERVICE_BASE=http://amundsenmetadata:5000
+        # Only for easy config-less Quickstart bookmark evalutation. `TestConfig` extends ordinary `LocalConfig` by
+        # defining `AUTH_USER_METHOD` to a hardcoded dummy user in `amundsen_application.tests.test_utils.get_test_user()`
+        # See further docs in https://github.com/amundsen-io/amundsenfrontendlibrary/blob/master/docs/configuration.md#flask
+        # and https://github.com/amundsen-io/amundsenfrontendlibrary/blob/master/docs/configuration.md#authentication
+        - FRONTEND_SVC_CONFIG_MODULE_CLASS=amundsen_application.config.TestConfig
+      command: gunicorn -w 2 --bind :5000 amundsen_application.wsgi
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=whiteklay
+      - RABBITMQ_DEFAULT_PASS=password
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    networks:
+      - vda
+
+  postgres:
+    image: postgres
+    restart: unless-stopped
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    #ports:
+    #  - "5432:5432"
+    networks:
+      - vda
+  
+  keycloak:
+    image: ${IMAGE_REGISTRY}/keycloak:21.1.1-staging
+    restart: unless-stopped
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USERNAME}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    ports:
+      - "8080:8080"
+    networks:
+      - vda
+
+  nginx:
+    image: ${IMAGE_REGISTRY}/nginx:timeout120
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - vda
+    depends_on:
+      - server
+      - client
+
+  client:
+    image: ${IMAGE_REGISTRY}/vda-client:${GIT_SHA}
+    restart: unless-stopped
+    #ports:
+    #  - "5000:5000"
+    depends_on:
+      - server
+    environment:
+      - VITE_SERVER_URL=/api/
+    networks:
+      - vda
+
+  server:
+    image: ${IMAGE_REGISTRY}/vda-server:${GIT_SHA}
+    restart: unless-stopped
+    environment:
+      - KEYCLOAK_URL=${KEYCLOAK_URL}
+      - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL}
+      - DATALOADER_URL=http://api-metadata:8000
+      - DATASEARCH_URL=http://amundsenfrontend:5000
+      - LLMAPI_URL=http://api-llmapi:8081
+      - SUPERSET_URL=http://api-superset:8082
+      - ORIG_SUPERSET_URL=${ORIG_SUPERSET_URL}
+      - ORIG_SUPERSET_TOKEN=${RIG_SUPERSET_TOKEN}
+      - AMUNDSEN_METADATA_URL=http://amundsenmetadata:5000
+      - UPLOAD_DIRECTORY=/uploads/
+      - MESSAGE_QUEUE_NAME=amundsen_queue
+      - MESSAGE_RESPONSE_QUEUE_NAME=amundsen_response_queue
+      - MESSAGE_QUEUE_HOST=${MESSAGE_QUEUE_HOST}
+      - UPLOAD_STORAGE=""
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - REALM_NAME=${REALM_NAME}
+      - SENTENCE_TRANSFORMER_URL=http://sentencetransformer:8084
+      - DATA_INGESTION_URL=${DATA_INGESTION_URL}
+      - GIT_CONTROL_URL=${GIT_CONTROL_URL}
+      - GIT_TOKEN=${GIT_TOKEN}
+      - GIT_REPONAME=${GIT_REPONAME}
+    #ports:
+    #  - "4000:4000"
+    volumes:
+      - /home/azureuser/uploads:/uploads
+    networks:
+      - vda
+    depends_on:
+      - api-superset
+      - api-llmapi
+      - api-metadata
+
+
+  api-superset:
+    image: ${IMAGE_REGISTRY}/vda-superset:${GIT_SHA}
+    restart: unless-stopped
+    environment:
+      - SUPERSET_URL=${ORIG_SUPERSET_URL}
+      - SUPERSET_USER=${SUPERSET_USER}
+      - SUPERSET_PASSWORD=${SUPERSET_PASSWORD}
+      - ELASTICSEARCH_URL=http://es_amundsen:9200
+      - PORT=8082
+    #ports:
+    #  - "8082:8082"
+    networks:
+      - vda
+
+
+  api-metadata:
+    image: ${IMAGE_REGISTRY}/vda-metadata:${GIT_SHA}
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_URL=es_amundsen
+      - NEO4J_URL=bolt://neo4j_amundsen:7687
+      - NEO4J_USER_NAME=neo4j
+      - NEO4J_PASSWORD=test
+      - NEO4J_FRONTEND_URL=http://neo4j_amundsen:7474
+      - MESSAGE_RESPONSE_QUEUE_NAME=${MESSAGE_RESPONSE_QUEUE_NAME}
+      - MESSAGE_QUEUE_NAME=${MESSAGE_QUEUE_NAME}
+      - MESSAGE_QUEUE_PORT=5672
+      - MESSAGE_QUEUE_USER=${MESSAGE_QUEUE_USER}
+      - MESSAGE_QUEUE_PASSWORD=${MESSAGE_QUEUE_PASSWORD}
+      - MESSAGE_QUEUE_HOST=${MESSAGE_QUEUE_HOST}
+      - SENTENCE_TRANSFORMER_URL=http://sentencetransformer:8084
+    #ports:
+    #  - "8000:8000"
+    networks:
+      - vda
+
+  
+  api-llmapi:
+    image: ${IMAGE_REGISTRY}/vda-llmapi:${GIT_SHA}
+    restart: unless-stopped
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - ELASTICSEARCH_URL=http://es_amundsen:9200
+    #ports:
+    #  - "8081:8081"
+    volumes:
+      - /home/azureuser/uploads:/uploads    
+    networks:
+      - vda
+
+  sentencetransformer:
+    image: ${IMAGE_REGISTRY}/vda-sentencetransformer:${GIT_SHA}
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_URL=http://es_amundsen:9200
+    #ports:
+    #  - "8084:8084"
+    networks:
+      - vda
+
+  git-control-app:
+    image: ${IMAGE_REGISTRY}/vda-git-control-app:3
+    restart: unless-stopped
+    environment:
+      - TOKEN=${GIT_TOKEN}
+    #ports:
+    #  - "8009:8008"
+    networks:
+      - vda
+
+
+
+networks:
+  vda:
+
+volumes:
+  es_data:
+  neo4j_data:
