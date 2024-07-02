@@ -6,7 +6,7 @@ x-superset-depends-on: &superset-depends-on
   - redis
 x-superset-volumes: &superset-volumes
   # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
-  - ./docker:/app/docker
+  - ./vda:/app/vda
   - superset_home:/app/superset_home
 
 version: '3'
@@ -21,7 +21,7 @@ services:
       - vda
 
   db:
-    env_file: docker/.env-non-dev
+    env_file: vda/.env-non-dev
     image: postgres:14
     container_name: superset_db
     restart: unless-stopped
@@ -31,10 +31,10 @@ services:
       - vda
 
   superset:
-    env_file: docker/.env-non-dev
+    env_file: vda/.env-non-dev
     image: *superset-image
     container_name: superset_app
-    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    command: ["/app/vda/docker-bootstrap.sh", "app-gunicorn"]
     user: "root"
     restart: unless-stopped
     ports:
@@ -47,8 +47,8 @@ services:
   superset-init:
     image: *superset-image
     container_name: superset_init
-    command: ["/app/docker/docker-init.sh"]
-    env_file: docker/.env-non-dev
+    command: ["/app/vda/docker-init.sh"]
+    env_file: vda/.env-non-dev
     depends_on: *superset-depends-on
     user: "root"
     volumes: *superset-volumes
@@ -60,8 +60,8 @@ services:
   superset-worker:
     image: *superset-image
     container_name: superset_worker
-    command: ["/app/docker/docker-bootstrap.sh", "worker"]
-    env_file: docker/.env-non-dev
+    command: ["/app/vda/docker-bootstrap.sh", "worker"]
+    env_file: vda/.env-non-dev
     restart: unless-stopped
     depends_on: *superset-depends-on
     user: "root"
@@ -74,8 +74,8 @@ services:
   superset-worker-beat:
     image: *superset-image
     container_name: superset_worker_beat
-    command: ["/app/docker/docker-bootstrap.sh", "beat"]
-    env_file: docker/.env-non-dev
+    command: ["/app/vda/docker-bootstrap.sh", "beat"]
+    env_file: vda.env-non-dev
     restart: unless-stopped
     depends_on: *superset-depends-on
     user: "root"
