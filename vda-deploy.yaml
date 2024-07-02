@@ -1,5 +1,90 @@
+
+
+x-superset-image: &superset-image microuidigital/superset-app:custom
+x-superset-depends-on: &superset-depends-on
+  - db
+  - redis
+x-superset-volumes: &superset-volumes
+  # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
+  - ./docker:/app/docker
+  - superset_home:/app/superset_home
+
 version: '3'
 services:
+  redis:
+    image: redis:7
+    container_name: superset_cache
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+    networks:
+      - vda
+
+  db:
+    env_file: docker/.env-non-dev
+    image: postgres:14
+    container_name: superset_db
+    restart: unless-stopped
+    volumes:
+      - db_home:/var/lib/postgresql/data
+    networks:
+      - vda
+
+  superset:
+    env_file: docker/.env-non-dev
+    image: *superset-image
+    container_name: superset_app
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    user: "root"
+    restart: unless-stopped
+    ports:
+      - 8088:8088
+    depends_on: *superset-depends-on
+    volumes: *superset-volumes
+    networks:
+      - vda
+
+  superset-init:
+    image: *superset-image
+    container_name: superset_init
+    command: ["/app/docker/docker-init.sh"]
+    env_file: docker/.env-non-dev
+    depends_on: *superset-depends-on
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      disable: true
+    networks:
+      - vda
+
+  superset-worker:
+    image: *superset-image
+    container_name: superset_worker
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
+    env_file: docker/.env-non-dev
+    restart: unless-stopped
+    depends_on: *superset-depends-on
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME"]
+    networks:
+      - vda
+
+  superset-worker-beat:
+    image: *superset-image
+    container_name: superset_worker_beat
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    env_file: docker/.env-non-dev
+    restart: unless-stopped
+    depends_on: *superset-depends-on
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      disable: true
+    networks:
+      - vda
+
   neo4j:
       image: neo4j:3.5.26
       container_name: neo4j_amundsen
@@ -109,6 +194,7 @@ services:
   postgres:
     image: postgres
     restart: unless-stopped
+    env_file: env.file
     environment:
       - PGDATA=/var/lib/postgresql/data/pgdata
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -120,6 +206,7 @@ services:
   keycloak:
     image: ${IMAGE_REGISTRY}/keycloak:21.1.1-staging
     restart: unless-stopped
+    env_file: env.file
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USERNAME}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
@@ -154,6 +241,7 @@ services:
   server:
     image: ${IMAGE_REGISTRY}/vda-server:${GIT_SHA}
     restart: unless-stopped
+    env_file: env.file
     environment:
       - KEYCLOAK_URL=${KEYCLOAK_URL}
       - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME}
@@ -164,7 +252,7 @@ services:
       - LLMAPI_URL=http://api-llmapi:8081
       - SUPERSET_URL=http://api-superset:8082
       - ORIG_SUPERSET_URL=${ORIG_SUPERSET_URL}
-      - ORIG_SUPERSET_TOKEN=${RIG_SUPERSET_TOKEN}
+      - ORIG_SUPERSET_TOKEN=${ORIG_SUPERSET_TOKEN}
       - AMUNDSEN_METADATA_URL=http://amundsenmetadata:5000
       - UPLOAD_DIRECTORY=/uploads/
       - MESSAGE_QUEUE_NAME=amundsen_queue
@@ -177,16 +265,19 @@ services:
       - REALM_NAME=${REALM_NAME}
       - SENTENCE_TRANSFORMER_URL=http://sentencetransformer:8084
       - DATA_INGESTION_URL=${DATA_INGESTION_URL}
-      - GIT_CONTROL_URL=${GIT_CONTROL_URL}
+      - GIT_CONTROL_URL=http://git-control-app:8008
       - GIT_TOKEN=${GIT_TOKEN}
       - GIT_REPONAME=${GIT_REPONAME}
     #ports:
     #  - "4000:4000"
     volumes:
-      - /home/azureuser/uploads:/uploads
+      - ./uploads:/uploads
     networks:
       - vda
     depends_on:
+      - postgres
+      - rabbitmq
+      - keycloak
       - api-superset
       - api-llmapi
       - api-metadata
@@ -195,6 +286,7 @@ services:
   api-superset:
     image: ${IMAGE_REGISTRY}/vda-superset:${GIT_SHA}
     restart: unless-stopped
+    env_file: env.file
     environment:
       - SUPERSET_URL=${ORIG_SUPERSET_URL}
       - SUPERSET_USER=${SUPERSET_USER}
@@ -210,6 +302,7 @@ services:
   api-metadata:
     image: ${IMAGE_REGISTRY}/vda-metadata:${GIT_SHA}
     restart: unless-stopped
+    env_file: env.file
     environment:
       - ELASTICSEARCH_URL=es_amundsen
       - NEO4J_URL=bolt://neo4j_amundsen:7687
@@ -232,6 +325,7 @@ services:
   api-llmapi:
     image: ${IMAGE_REGISTRY}/vda-llmapi:${GIT_SHA}
     restart: unless-stopped
+    env_file: env.file
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
@@ -242,7 +336,7 @@ services:
     #ports:
     #  - "8081:8081"
     volumes:
-      - /home/azureuser/uploads:/uploads    
+      - ./uploads:/uploads    
     networks:
       - vda
 
@@ -259,6 +353,7 @@ services:
   git-control-app:
     image: ${IMAGE_REGISTRY}/vda-git-control-app:3
     restart: unless-stopped
+    env_file: env.file
     environment:
       - TOKEN=${GIT_TOKEN}
     #ports:
@@ -274,3 +369,9 @@ networks:
 volumes:
   es_data:
   neo4j_data:
+  superset_home:
+    external: false
+  db_home:
+    external: false
+  redis:
+    external: false
