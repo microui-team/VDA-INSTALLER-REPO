@@ -12,21 +12,21 @@ Docker is an easy way to get started with Superset.
 ## Deployment steps for VDA application
 vda-deploy.yaml uses the environment variable which are present in [`./vda/.env-vda`]
 
-## for deploying the application 
+## For deploying the application 
 sh docker-compose-up.sh
 
 or
 
 docker compose -f vda-deploy.yaml  --env-file vda/.env-vda up -d    
 
-## stoping the services
+## Stoping the services
 sh docker-compose-down.sh
 
 or
 
 docker compose -f vda-deploy.yaml --env-file vda/.env-vda down
 
-## for persistent volume cleaning
+## For persistent volume cleaning
 sh docker-volume-prune.sh
 
 or
@@ -37,7 +37,7 @@ docker volume prune -a
 
 
 
-## some configuration details related to superset app  
+## Some configuration details related to superset app  
 ## Configuration
 
 The `/app/pythonpath` folder is mounted from [`./vda/pythonpath_dev`](./pythonpath_dev)
