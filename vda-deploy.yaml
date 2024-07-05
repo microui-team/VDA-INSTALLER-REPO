@@ -1,12 +1,12 @@
 
 
-x-superset-image: &superset-image microuidigital/superset-app:custom
+x-superset-image: &superset-image microuidigital/superset-app:latest
 x-superset-depends-on: &superset-depends-on
   - db
   - redis
 x-superset-volumes: &superset-volumes
   # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
-  - ./vda:/app/vda
+  - ./vda:/app/docker
   - superset_home:/app/superset_home
 
 version: '3'
@@ -34,7 +34,7 @@ services:
     env_file: vda/.env-non-dev
     image: *superset-image
     container_name: superset_app
-    command: ["/app/vda/docker-bootstrap.sh", "app-gunicorn"]
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
     user: "root"
     restart: unless-stopped
     ports:
@@ -47,7 +47,7 @@ services:
   superset-init:
     image: *superset-image
     container_name: superset_init
-    command: ["/app/vda/docker-init.sh"]
+    command: ["/app/docker/docker-init.sh"]
     env_file: vda/.env-non-dev
     depends_on: *superset-depends-on
     user: "root"
@@ -60,7 +60,7 @@ services:
   superset-worker:
     image: *superset-image
     container_name: superset_worker
-    command: ["/app/vda/docker-bootstrap.sh", "worker"]
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file: vda/.env-non-dev
     restart: unless-stopped
     depends_on: *superset-depends-on
@@ -74,8 +74,8 @@ services:
   superset-worker-beat:
     image: *superset-image
     container_name: superset_worker_beat
-    command: ["/app/vda/docker-bootstrap.sh", "beat"]
-    env_file: vda.env-non-dev
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    env_file: vda/.env-non-dev
     restart: unless-stopped
     depends_on: *superset-depends-on
     user: "root"
@@ -194,7 +194,7 @@ services:
   postgres:
     image: postgres
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - PGDATA=/var/lib/postgresql/data/pgdata
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -204,9 +204,9 @@ services:
       - vda
   
   keycloak:
-    image: ${IMAGE_REGISTRY}/keycloak:21.1.1-staging
+    image: ${IMAGE_REGISTRY}/keycloak:local
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USERNAME}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
@@ -216,7 +216,7 @@ services:
       - vda
 
   nginx:
-    image: ${IMAGE_REGISTRY}/nginx:timeout120
+    image: ${IMAGE_REGISTRY}/nginx:latest
     restart: unless-stopped
     ports:
       - "80:80"
@@ -241,7 +241,7 @@ services:
   server:
     image: ${IMAGE_REGISTRY}/vda-server:${GIT_SHA}
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - KEYCLOAK_URL=${KEYCLOAK_URL}
       - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME}
@@ -286,7 +286,7 @@ services:
   api-superset:
     image: ${IMAGE_REGISTRY}/vda-superset:${GIT_SHA}
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - SUPERSET_URL=${ORIG_SUPERSET_URL}
       - SUPERSET_USER=${SUPERSET_USER}
@@ -302,7 +302,7 @@ services:
   api-metadata:
     image: ${IMAGE_REGISTRY}/vda-metadata:${GIT_SHA}
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - ELASTICSEARCH_URL=es_amundsen
       - NEO4J_URL=bolt://neo4j_amundsen:7687
@@ -325,7 +325,7 @@ services:
   api-llmapi:
     image: ${IMAGE_REGISTRY}/vda-llmapi:${GIT_SHA}
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
@@ -351,9 +351,9 @@ services:
       - vda
 
   git-control-app:
-    image: ${IMAGE_REGISTRY}/vda-git-control-app:3
+    image: ${IMAGE_REGISTRY}/vda-gitcontrolapp:latest
     restart: unless-stopped
-    env_file: env.file
+    env_file: vda/.env-vda
     environment:
       - TOKEN=${GIT_TOKEN}
     #ports:
