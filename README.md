@@ -5,6 +5,10 @@
 1. [Docker](https://www.docker.com/get-started)
 2. [Docker Compose](https://docs.docker.com/compose/install/)
 
+# minimum requiremnet of resources for setup
+RAM	12 GB \
+Hard disk	5 GB \
+CPUs	4 
 ## Deployment steps for VDA application
 vda-deploy.yaml uses the environment variable which are present in [`./vda/.env-vda`]
 
