@@ -1,9 +1,5 @@
 # VDA-INSTALLER-REPO
 
-# Getting Started with Superset using Docker
-
-Docker is an easy way to get started with Superset.
-
 ## Prerequisites
 
 1. [Docker](https://www.docker.com/get-started)
