@@ -5,7 +5,7 @@
 1. [Docker](https://www.docker.com/get-started)
 2. [Docker Compose](https://docs.docker.com/compose/install/)
 
-# minimum requiremnet of resources for setup
+# Minimum requiremnet of resources for setup
 RAM	12 GB \
 Hard disk	5 GB \
 CPUs	4 
@@ -13,25 +13,19 @@ CPUs	4
 vda-deploy.yaml uses the environment variable which are present in [`./vda/.env-vda`]
 
 ## For deploying the application 
-sh docker-compose-up.sh
-
-or
-
+sh docker-compose-up.sh \
+or\
 docker compose -f vda-deploy.yaml  --env-file vda/.env-vda up -d    
 
 ## Stoping the services
-sh docker-compose-down.sh
-
-or
-
+sh docker-compose-down.sh \
+or \
 docker compose -f vda-deploy.yaml --env-file vda/.env-vda down
 
 ## For persistent volume cleaning
-sh docker-volume-prune.sh
-
-or
-
-docker compose -f vda-deploy.yml --env-file vda/.env-vda down
+sh docker-volume-prune.sh \
+or \
+docker compose -f vda-deploy.yml --env-file vda/.env-vda down \
 docker volume prune -a
 
 
