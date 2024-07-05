@@ -5,7 +5,7 @@
 1. [Docker](https://www.docker.com/get-started)
 2. [Docker Compose](https://docs.docker.com/compose/install/)
 
-# Minimum requiremnet of resources for setup
+# Minimum requirement of resources for setup
 RAM	12 GB \
 Hard disk	5 GB \
 CPUs	4 
