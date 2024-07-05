@@ -1,2 +1,2 @@
 #!/bin/bash
-docker compose -f vda-deploy.yml down
+docker compose -f vda-deploy.yaml --env-file vda/.env-vda down
