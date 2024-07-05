@@ -7,7 +7,7 @@
 
 # Minimum requirement of resources for setup
 RAM	12 GB \
-Hard disk	5 GB \
+Hard disk	20 GB \
 CPUs	4 
 ## Deployment steps for VDA application
 vda-deploy.yaml uses the environment variable which are present in [`./vda/.env-vda`]
