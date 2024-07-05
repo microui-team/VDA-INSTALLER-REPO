@@ -14,17 +14,23 @@ vda-deploy.yaml uses the environment variable which are present in [`./vda/.env-
 
 ## for deploying the application 
 sh docker-compose-up.sh
+
 or
+
 docker compose -f vda-deploy.yaml  --env-file vda/.env-vda up -d    
 
 ## stoping the services
 sh docker-compose-down.sh
+
 or
+
 docker compose -f vda-deploy.yaml --env-file vda/.env-vda down
 
 ## for persistent volume cleaning
 sh docker-volume-prune.sh
+
 or
+
 docker compose -f vda-deploy.yml --env-file vda/.env-vda down
 docker volume prune -a
 
